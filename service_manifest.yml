@@ -1,0 +1,249 @@
+name: Synapse
+version: $SERVICE_TAG
+description: An AL4 post-processing service that takes the resulting AL4 tags and queries Vertex Synapse for additional context.
+
+# Regex defining the types of files the service accepts and rejects
+accepts: .*
+rejects: empty
+
+stage: POST
+
+category: External
+
+# Does the service require access to the file to perform its task
+# If set to false, the service will only have access to the file metadata (e.g. Hashes, size, type, ...)
+file_required: false
+
+# Maximum execution time the service has before it's considered to be timed out
+timeout: 60
+
+# Does the service force the caching of results to be disabled
+#  (only use for service that will always provided different results each run)
+#  Defaulting this to true for this service b/c it's possible the tags associated with a Synapse
+#  node will change and would like to pick up the latest possible info.
+disable_cache: true
+
+# is the service enabled by default
+enabled: false
+
+privileged: true
+
+# does the service make APIs call to other products not part of the assemblyline infrastructure (e.g. VirusTotal, ...)
+is_external: true
+
+# Number of concurrent services allowed to run at the same time
+#licence_count: 10
+
+# This is required or the service will not have access to the tags created by other services.
+uses_tags: true
+uses_metadata: true
+
+
+# service configuration block
+config:
+  
+  #
+  # NOTE: You MUST configure all of these for your own environment. Do NOT try to use the defaults.
+  #
+
+  # See Synapse API Key docs: https://synapse.docs.vertex.link/en/latest/synapse/httpapi.html#api-key-support
+  # Note: Even though the Synapse API queries are run in read-only mode, it is still recommended you
+  # use a Synapse account with limited privileges.
+  synapse_api_key:
+  
+  # Consider pointing to a synapse mirror endpoint if you expect a high volume of queries.
+  # e.g. synapse.local
+  synapse_host:
+  
+  storm_opts:
+    # Specifying nothing will use the default view in Synapse. Otherwise specify the view iden.
+    synapse_view_iden:
+
+  # The maximum number of nodes for a given Synapse query. 
+  #  e.g. If there are 75 AL4 tags in a result eligible for this service to query Synapse with, 
+  #  then the service will make two separate calls to Synapse. Do not go above ~900 as there is
+  #  an upper limit.
+  max_nodes_per_query: 50
+  
+  # List of AL4 tag types to consider when searching for nodes in Synapse. Remove any from this list
+  #  that you do not want to include when searching Synapse.
+  # Note: These are all the tag types this service supports.
+  al4_tag_types:
+    - network.static.ip
+    - network.dynamic.ip
+    - network.static.domain
+    - network.dynamic.domain
+    - network.static.uri
+    - network.dynamic.uri
+    - network.email.address
+
+  # Map to AL4 heuristics based on conditions containing Synapse tag prefixes.
+  #
+  # Use the examples below to understand the configuration.
+  #
+  # Overall Rules:
+  # - The generated Synapse query takes into account the al4_tag_types defined above.
+  #    The Synapse query uses the associated al4_tag and translates that to a Synapse query and
+  #    includes the tag conditions defined below.
+  #    e.g. A Synapse query might look like this: inet:fqdn=foo.local +(#mal or #susp)
+  # - All tags specified in the condition will match the exact defined tag and all leaf tags.
+  #    e.g. a definition for safe.test will match #safe.test and #safe.test.**
+  #    Ref for Synapse tags: https://synapse.docs.vertex.link/en/latest/synapse/glossary.html#tag-base
+  # - If there are multiple matches, the highest scoring heuristic will be used.
+  # - Synapse tag globbing is NOT supported in the heur_map configuration.
+  #    Ref: https://synapse.docs.vertex.link/en/latest/synapse/userguides/storm_ref_filter.html#filter-by-tag-globs
+  heur_map:
+    # Example: map heuristic id 20 to nodes returned by the synapse query:
+    #  <form=val> +#safe
+    # https://synapse.docs.vertex.link/en/latest/synapse/glossary.html#tag-root
+    20:
+      match_any_syn_tag:
+        - safe
+
+    # Example: map heuristic id 21 to nodes returned by the synapse query:
+    #  <form=val> +(#info or #bookmark.info)
+    21:
+      match_any_syn_tag:
+        - info
+        - bookmark.info
+
+    # Example: map heuristic id 22 to nodes returned by the synapse query:
+    #  <form=val> +(#susp and #rep.vendorx.susp) or +(#susp and #rep.vendory.susp)
+    22:
+      match_all_syn_tags:
+        - - susp
+          - rep.vendorx.susp
+        - - susp
+          - rep.vendory.susp
+
+    # Example: map heuristic id 23 to nodes returned by the synapse query:
+    #   <form=val> +(#rep.trustedvendorx.susp or #rep.trustedvendory.susp) or (#rep.vendorx and #susp)
+    23:
+      match_any_syn_tag:
+        - rep.trustedvendorx.susp
+        - rep.trustedvendory.susp
+      match_all_syn_tags:
+        - - rep.vendorx
+          - susp
+
+  # Completely filter out any synapse nodes in the result that have any of these tags.
+  # i.e. If any of these tags are found on the Synapse node, do not include the result at all.
+  # Note: These tag filters are used directly in the Synapse query
+  # e.g. inet:fqdn=test.local -#safe -#omit.**.konwn
+  # Synapse tag globbing is supported in this configuration.
+  #  Ref: https://synapse.docs.vertex.link/en/latest/synapse/userguides/storm_ref_filter.html#filter-by-tag-globs
+  syntags_to_filter_node:
+    - safe
+    - omit.**.known
+
+  # Remove these specific tags from the AL results.
+  # i.e. This will not filter the node completely, but just remove these tags from showing up in the
+  #  AL results.
+  syntag_prefixes_to_filter:
+    - noisy
+
+
+# Service heuristic blocks: List of heuristic objects that define the different heuristics used in the service
+# Note: This uses the same pattern the TagCheck service does to allow for flexibilty in the config.
+heuristics:  
+
+  # A generic set of heuristics with a granular scoring option
+  - heur_id: 1
+    name: Synapse Tag of Interest - Level 1
+    score: 100
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 1
+
+  - heur_id: 2
+    name: Synapse Tag of Interest - Level 2
+    score: 200
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 2
+
+  - heur_id: 3
+    name: Synapse Tag of Interest - Level 3
+    score: 300
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 3
+
+  - heur_id: 4
+    name: Synapse Tag of Interest - Level 4
+    score: 400
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 4
+
+  - heur_id: 5
+    name: Synapse Tag of Interest - Level 5
+    score: 500
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 5
+
+  - heur_id: 6
+    name: Synapse Tag of Interest - Level 6
+    score: 600
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 6
+
+  - heur_id: 7
+    name: Synapse Tag of Interest - Level 7
+    score: 700
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 7
+
+  - heur_id: 8
+    name: Synapse Tag of Interest - Level 8
+    score: 800
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 8
+
+  - heur_id: 9
+    name: Synapse Tag of Interest - Level 9
+    score: 900
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 9
+
+  - heur_id: 10
+    name: Synapse Tag of Interest - Level 10
+    score: 1000
+    filetype: "*"
+    description: A Synapse tag of potential interest was found - Level 10
+
+  # A more specific set of heuristics
+  - heur_id: 20
+    name: Synapse Tag of Interest - Safe
+    score: -1000
+    filetype: "*"
+    description: A Synapse tag was found that is considered known good/safe.
+
+  - heur_id: 21
+    name: Synapse Tag of Interest - Informational
+    score: 1
+    filetype: "*"
+    description: A Synapse tag was found that is considered informational.
+
+  - heur_id: 22
+    name: Synapse Tag of Interest - Suspicious
+    score: 300
+    filetype: "*"
+    description: A Synapse tag was found that is considered suspicious.
+
+  - heur_id: 23
+    name: Synapse Tag of Interest - Highly Suspicious
+    score: 700
+    filetype: "*"
+    description: A Synapse tag was found that is considered highly suspicious.
+
+  - heur_id: 24
+    name: Synapse Tag of Interest - Maliciuos
+    score: 1000
+    filetype: "*"
+    description: A Synapse tag was found that is considered malicious.
+
+# Docker configuration block which defines:
+#  - the name of the docker container that will be created
+#  - CPU and ram allocation by the container
+docker_config:
+  image: ghcr.io/usaa/assemblyline-service-synapse:$SERVICE_TAG
+  cpu_cores: 1.0
+  ram_mb_min: 256
+  ram_mb: 512

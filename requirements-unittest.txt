@@ -1,0 +1,8 @@
+# Unit test specific packages
+pytest==8.3.3
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+
+flake8==7.1.1
+mypy==1.13.0
+pylint==3.3.1
