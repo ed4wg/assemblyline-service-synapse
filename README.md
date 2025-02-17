@@ -8,7 +8,7 @@ queries your Vertex Synapse instance for additional context.
 
 ## Execution
 
-This service does NOT submit the file to Synapse. It takes the configured Assmeblyline tag types
+This service does NOT submit the file to Synapse. It takes the configured Assemblyline tag types
 and translates those tag name-value pairs into a Synapse query. The Synapse query is further refined
 by any filters defined in the configuration.
 
