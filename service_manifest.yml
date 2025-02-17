@@ -38,10 +38,8 @@ is_external: true
 uses_tags: true
 uses_metadata: true
 
-
 # service configuration block
 config:
-  
   #
   # NOTE: You MUST configure all of these for your own environment. Do NOT try to use the defaults.
   #
@@ -50,21 +48,24 @@ config:
   # Note: Even though the Synapse API queries are run in read-only mode, it is still recommended you
   # use a Synapse account with limited privileges.
   synapse_api_key:
-  
+
   # Consider pointing to a synapse mirror endpoint if you expect a high volume of queries.
   # e.g. synapse.local
   synapse_host:
-  
+
+  # set to false when Synapse does not have a valid SSL cert
+  verify_cert: true
+
   storm_opts:
     # Specifying nothing will use the default view in Synapse. Otherwise specify the view iden.
     synapse_view_iden:
 
-  # The maximum number of nodes for a given Synapse query. 
-  #  e.g. If there are 75 AL4 tags in a result eligible for this service to query Synapse with, 
+  # The maximum number of nodes for a given Synapse query.
+  #  e.g. If there are 75 AL4 tags in a result eligible for this service to query Synapse with,
   #  then the service will make two separate calls to Synapse. Do not go above ~900 as there is
   #  an upper limit.
   max_nodes_per_query: 50
-  
+
   # List of AL4 tag types to consider when searching for nodes in Synapse. Remove any from this list
   #  that you do not want to include when searching Synapse.
   # Note: These are all the tag types this service supports.
@@ -142,11 +143,9 @@ config:
   syntag_prefixes_to_filter:
     - noisy
 
-
 # Service heuristic blocks: List of heuristic objects that define the different heuristics used in the service
 # Note: This uses the same pattern the TagCheck service does to allow for flexibilty in the config.
-heuristics:  
-
+heuristics:
   # A generic set of heuristics with a granular scoring option
   - heur_id: 1
     name: Synapse Tag of Interest - Level 1

@@ -59,8 +59,11 @@ class Synapse(ServiceBase):
         self.syn_view_iden = self.config.get("storm_opts", {}).get("synapse_view_iden")
         self.max_nodes_per_query = self.config.get("max_nodes_per_query", 50)
         self.heur_map: dict[str, dict[str, list[Any]]] = self.config.get("heur_map")
-        self.syntags_to_filter_node: list[str] = self.config.get("syntags_to_filter_node")
+        self.syntags_to_filter_node: list[str] = self.config.get(
+            "syntags_to_filter_node"
+        )
         self.service_heuristics = get_heuristics()
+        self.verify_cert = self.config.get("verify_cert", True)
 
         self.safelist = {}
         try:
@@ -97,7 +100,9 @@ class Synapse(ServiceBase):
 
         for pnode in self._synapse_lookup(syn_ndefs):
 
-            if res := res_helper.build_node_res_section(pnode=pnode, al4_tags=request.task.tags):
+            if res := res_helper.build_node_res_section(
+                pnode=pnode, al4_tags=request.task.tags
+            ):
                 request.result.add_section(res)
 
     def _build_syn_queries(
@@ -132,7 +137,9 @@ class Synapse(ServiceBase):
         # create multiple queries based on the chunk size.
         # Synapse will error if you try to cram too many nodes in a single query. It should
         # definitely be under 1000 nodes per query.
-        for chunk in [ndefs[x : x + chunk_size] for x in range(0, len(ndefs), chunk_size)]:
+        for chunk in [
+            ndefs[x : x + chunk_size] for x in range(0, len(ndefs), chunk_size)
+        ]:
             query = " ".join(f'{syn_node_typ}="{ind}"' for syn_node_typ, ind in chunk)
 
             #
@@ -148,7 +155,9 @@ class Synapse(ServiceBase):
                 # syntags with AND conditions
                 for tag_set in match_all_syn_tag_sets:
                     query += " or ("
-                    query += " and ".join(f"#{syntag_prefix}" for syntag_prefix in tag_set)
+                    query += " and ".join(
+                        f"#{syntag_prefix}" for syntag_prefix in tag_set
+                    )
                     query += ")"
 
                 query += ")"
@@ -225,12 +234,16 @@ class Synapse(ServiceBase):
                 except ValueError:
                     # log and continue on
                     self.log.error(
-                        "AL4 tag value failed parsing: %s : %s", al4_tag_type, al4_tag_val
+                        "AL4 tag value failed parsing: %s : %s",
+                        al4_tag_type,
+                        al4_tag_val,
                     )
 
         return syn_ndefs
 
-    def _synapse_lookup(self, syn_ndefs: set[tuple[str, str]]) -> Iterator[tuple[tuple, dict]]:
+    def _synapse_lookup(
+        self, syn_ndefs: set[tuple[str, str]]
+    ) -> Iterator[tuple[tuple, dict]]:
         """Call Synapse to query for the specified nodes.
 
         Args:
@@ -261,7 +274,9 @@ class Synapse(ServiceBase):
 
         url = f"https://{self.syn_host}/api/v1/storm"
 
-        queries: list[str] = self._build_syn_queries(syn_ndefs, chunk_size=self.max_nodes_per_query)
+        queries: list[str] = self._build_syn_queries(
+            syn_ndefs, chunk_size=self.max_nodes_per_query
+        )
 
         storm_opts = {
             "repr": True,
@@ -274,7 +289,14 @@ class Synapse(ServiceBase):
         for query in queries:
             data = {"query": query, "opts": storm_opts, "stream": "jsonlines"}
 
-            with requests.get(url, json=data, headers=headers, stream=True, timeout=30) as response:
+            with requests.get(
+                url,
+                json=data,
+                headers=headers,
+                stream=True,
+                timeout=30,
+                verify=self.verify_cert,
+            ) as response:
                 for line in response.iter_lines(decode_unicode=True):
                     if line:
                         mesg = json.loads(line)
@@ -310,10 +332,14 @@ class Synapse(ServiceBase):
             bool: Whether config is valid
         """
         if not self.config.get("synapse_api_key"):
-            raise InvalidConfigurationException("synapse_api_key is required in the configuration")
+            raise InvalidConfigurationException(
+                "synapse_api_key is required in the configuration"
+            )
 
         if not self.config.get("synapse_host"):
-            raise InvalidConfigurationException("synapse_host is required in the configuration")
+            raise InvalidConfigurationException(
+                "synapse_host is required in the configuration"
+            )
 
         #
         # al4_tag_types validation
@@ -334,7 +360,9 @@ class Synapse(ServiceBase):
         # heur_map validation
         heur_map = self.config.get("heur_map")
         if heur_map is None:
-            raise InvalidConfigurationException("heur_map is required in the configuration")
+            raise InvalidConfigurationException(
+                "heur_map is required in the configuration"
+            )
         ##  must be a dict
         if not isinstance(heur_map, dict):
             raise InvalidConfigurationException("heur_map must be a dict")
@@ -358,7 +386,9 @@ class Synapse(ServiceBase):
                 )
 
             ##  must have at least one condition and the keys match_any_syn_tag and/or match_all_syn_tags
-            if not all(cond in ("match_any_syn_tag", "match_all_syn_tags") for cond in cond_cfg):
+            if not all(
+                cond in ("match_any_syn_tag", "match_all_syn_tags") for cond in cond_cfg
+            ):
                 raise InvalidConfigurationException(
                     "heur_map heuristic conditions must have a key of match_any_syn_tag and/or match_all_syn_tags"
                 )
@@ -366,7 +396,9 @@ class Synapse(ServiceBase):
             ## the match_all_syn_tags key must be a list of lists
             cfg = cond_cfg.get("match_all_syn_tags")
             if cfg:
-                if not isinstance(cfg, list) or not all(isinstance(x, list) for x in cfg):
+                if not isinstance(cfg, list) or not all(
+                    isinstance(x, list) for x in cfg
+                ):
                     raise InvalidConfigurationException(
                         "heur_map heuristic conditions match_all_syn_tags must be a list of lists"
                     )
@@ -374,7 +406,9 @@ class Synapse(ServiceBase):
             ## the match_any_syn_tag key must be a list of strings
             cfg = cond_cfg.get("match_any_syn_tag")
             if cfg:
-                if not isinstance(cfg, list) or not all(isinstance(x, str) for x in cfg):
+                if not isinstance(cfg, list) or not all(
+                    isinstance(x, str) for x in cfg
+                ):
                     raise InvalidConfigurationException(
                         "heur_map heuristic conditions match_any_syn_tag must be a list of strings"
                     )
