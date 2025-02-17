@@ -53,7 +53,7 @@ config:
   # e.g. synapse.local
   synapse_host:
 
-  # set to false when Synapse does not have a valid SSL cert
+  # configure TLS cert verification when communicating with the Synapse API.
   verify_cert: true
 
   storm_opts:
@@ -97,35 +97,42 @@ config:
     # Example: map heuristic id 20 to nodes returned by the synapse query:
     #  <form=val> +#safe
     # https://synapse.docs.vertex.link/en/latest/synapse/glossary.html#tag-root
-    20:
-      match_any_syn_tag:
-        - safe
+    # 20:
+    #   match_any_syn_tag:
+    #     - safe
 
     # Example: map heuristic id 21 to nodes returned by the synapse query:
     #  <form=val> +(#info or #bookmark.info)
-    21:
-      match_any_syn_tag:
-        - info
-        - bookmark.info
+    # 21:
+    #   match_any_syn_tag:
+    #     - info
+    #     - bookmark.info
 
     # Example: map heuristic id 22 to nodes returned by the synapse query:
     #  <form=val> +(#susp and #rep.vendorx.susp) or +(#susp and #rep.vendory.susp)
-    22:
-      match_all_syn_tags:
-        - - susp
-          - rep.vendorx.susp
-        - - susp
-          - rep.vendory.susp
+    # 22:
+    #   match_all_syn_tags:
+    #     - - susp
+    #       - rep.vendorx.susp
+    #     - - susp
+    #       - rep.vendory.susp
 
     # Example: map heuristic id 23 to nodes returned by the synapse query:
     #   <form=val> +(#rep.trustedvendorx.susp or #rep.trustedvendory.susp) or (#rep.vendorx and #susp)
-    23:
+    # 23:
+    #   match_any_syn_tag:
+    #     - rep.trustedvendorx.susp
+    #     - rep.trustedvendory.susp
+    #   match_all_syn_tags:
+    #     - - rep.vendorx
+    #       - susp
+
+    # Default mapping to malicious heuristic
+    #  <form=val> +(#cno.threat or #cno.mal)
+    24:
       match_any_syn_tag:
-        - rep.trustedvendorx.susp
-        - rep.trustedvendory.susp
-      match_all_syn_tags:
-        - - rep.vendorx
-          - susp
+        - cno.threat
+        - cno.mal
 
   # Completely filter out any synapse nodes in the result that have any of these tags.
   # i.e. If any of these tags are found on the Synapse node, do not include the result at all.
