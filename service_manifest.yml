@@ -253,3 +253,4 @@ docker_config:
   cpu_cores: 1.0
   ram_mb_min: 256
   ram_mb: 512
+  allow_internet_access: true
